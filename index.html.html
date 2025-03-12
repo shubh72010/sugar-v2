@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clashers</title>
+    <style>
+        body { 
+            margin: 0; 
+            overflow: hidden; 
+            background: linear-gradient(135deg, #87CEEB, #1E90FF, #00BFFF); 
+            background-size: 300% 300%; 
+            animation: gradientAnimation 15s ease infinite; 
+            text-align: center; 
+        }
+
+        @keyframes gradientAnimation {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        canvas { display: none; } /* Hide canvas initially */
+        
+        .menu {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+        }
+
+        .menu h1, .menu h2 {
+            color: white;
+            margin-bottom: 10px;
+        }
+
+        .menu button, .menu input, .menu select {
+            padding: 15px 30px;
+            font-size: 20px;
+            border: none;
+            border-radius: 5px;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            cursor: pointer;
+            transition: background 0.3s, transform 0.3s;
+        }
+
+        .menu button:hover {
+            background: rgba(255, 255, 255, 0.5);
+            transform: scale(1.05);
+        }
+
+        .controls {
+            position: absolute;
+            bottom: 80px;
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            gap: 20px;
+        }
+
+        .player-controls {
+            display: flex;
+            gap: 10px;
+        }
+
+        button {
+            width: 60px;
+            height: 60px;
+            font-size: 20px;
+            border-radius: 50%;
+            border: none;
+            background: rgba(0,0,0,0.5);
+            color: white;
+            cursor: pointer;
+        }
+
+        #winner {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 40px;
+            font-weight: bold;
+            color: white;
+            display: none; /* Hidden initially */
+        }
+
+        #loading {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: black;
+            color: white;
+            font-size: 30px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #reset-button {
+            padding: 10px 20px;
+            font-size: 20px;
+            border: none;
+            border-radius: 5px;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            cursor: pointer;
+            display: none; /* Hidden initially */
+            transition: background 0.3s, transform 0.3s;
+        }
+
+        #reset-button:hover {
+            background: rgba(255, 255, 255, 0.5);
+            transform: scale(1.05);
+        }
+    </style>
+</head>
+<body>
+    <div id="loading">Loading...</div>
+    <div class="menu" id="menu">
+        <h1>Clashers</h1>
+        <button id="start-button">Start Game</button>
+        <button id="instructions-button">Instructions</button>
+        <button id="exit-button">Exit</button>
+        
+        <h2>Customize Players</h2>
+        <div>
+            <label for="p1-name">Player 1 Name:</label>
+            <input type="text" id="p1-name" placeholder="Enter Player 1 Name" />
+            <label for="p1-color">Player 1 Color:</label>
+            <input type="color" id="p1-color" value="#ff0000" />
+        </div>
+        <div>
+            <label for="p2-name">Player 2 Name:</label>
+            <input type="text" id="p2-name" placeholder="Enter Player 2 Name" />
+            <label for="p2-color">Player 2 Color:</label>
+            <input type="color" id="p2-color" value="#0000ff" />
+        </div>
+    </div>
+    <canvas id="gameCanvas"></canvas>
+    <div id="winner"></div>
+    <button id="reset-button">Play Again</button>
+    <div class="controls">
+        <div class="player-controls">
+            <button id="p1-left">⬅️</button>
+            <button id="p1-jump">⬆️</button>
+            <button id="p1-right">➡️</button>
+            <button id="p1-attack">⚔️</button>
+        </div>
+        <div class="player-controls">
+            <button id="p2-left">⬅️</button>
+            <button id="p2-jump">⬆️</button>
+            <button id="p2-right">➡️</button>
+            <button id="p2-attack">⚔️</button>
+        </div>
+    </div>
+    <script>
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+        const winnerText = document.getElementById("winner");
+        const loadingScreen = document.getElementById("loading");
+        const menu = document.getElementById("menu");
+        const resetButton = document.getElementById("reset-button");
+        
+        setTimeout(() => loadingScreen.style.display = "none", 2000);
+        
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        class Player {
+            constructor(x, y, color, name) {
+                this.x = x;
+                this.y = y;
+                this.width = 50;
+                this.height = 50;
+                this.color = color;
+                this.velocity = { x: 0, y: 0 };
+                this.speed = 5;
+                this.gravity = 0.5;
+                this.jumpPower = -10;
+                this.onGround = false;
+                this.health = 100;
+                this.name = name;
+            }
+            draw() {
+                ctx.fillStyle = this.color;
+                ctx.fillRect(this.x, this.y, this.width, this.height);
+                
+                ctx.fillStyle = "black";
+                ctx.fillRect(this.x, this.y - 15, 50, 5);
+                ctx.fillStyle = "green";
+                ctx.fillRect(this.x, this.y - 15, this.health * 0.5, 5);
+            }
+            update() {
+                this.velocity.y += this.gravity;
+                this.y += this.velocity.y;
+                if (this.y + this.height >= canvas.height - 100) {
+                    this.y = canvas.height - 100 - this.height;
+                    this.velocity.y = 0;
+                    this.onGround = true;
+                } else {
+                    this.onGround = false;
+                }
+                this.x += this.velocity.x;
+                this.x = Math.max(0, Math.min(canvas.width - this.width, this.x));
+                this.draw();
+            }
+            attack(opponent) {
+                if (
+                    this.x + this.width >= opponent.x &&
+                    this.x <= opponent.x + opponent.width &&
+                    this.y + this.height >= opponent.y &&
+                    this.y <= opponent.y + opponent.height
+                ) {
+                    opponent.health -= 10;
+                    if (opponent.health <= 0) {
+                        this.displayWinner();
+                    }
+                }
+            }
+            displayWinner() {
+                winnerText.innerText = `${this.name} Wins!`;
+                winnerText.style.display = "block";
+                canvas.style.display = "none"; // Hide canvas
+                document.querySelector('.controls').style.display = "none"; // Hide controls
+                resetButton.style.display = "block"; // Show reset button
+            }
+        }
+        
+        let player1, player2;
+
+        function createPlayers() {
+            const p1Name = document.getElementById("p1-name").value || "Player 1";
+            const p1Color = document.getElementById("p1-color").value || "#ff0000";
+            const p2Name = document.getElementById("p2-name").value || "Player 2";
+            const p2Color = document.getElementById("p2-color").value || "#0000ff";
+
+            player1 = new Player(100, 500, p1Color, p1Name);
+            player2 = new Player(400, 500, p2Color, p2Name);
+        }
+
+        function gameLoop() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = "#654321";
+            ctx.fillRect(0, canvas.height - 100, canvas.width, 50);
+            
+            player1.update();
+            player2.update();
+            
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Event listeners for player controls
+        document.getElementById("p1-left").addEventListener("click", () => player1.velocity.x = -player1.speed);
+        document.getElementById("p1-right").addEventListener("click", () => player1.velocity.x = player1.speed);
+        document.getElementById("p1-jump").addEventListener("click", () => { if (player1.onGround) player1.velocity.y = player1.jumpPower; });
+        document.getElementById("p1-attack").addEventListener("click", () => player1.attack(player2));
+
+        document.getElementById("p2-left").addEventListener("click", () => player2.velocity.x = -player2.speed);
+        document.getElementById("p2-right").addEventListener("click", () => player2.velocity.x = player2.speed);
+        document.getElementById("p2-jump").addEventListener("click", () => { if (player2.onGround) player2.velocity.y = player2.jumpPower; });
+        document.getElementById("p2-attack").addEventListener("click", () => player2.attack(player1));
+
+        // Stop movement when buttons are released
+        document.getElementById("p1-left").addEventListener("mouseup", () => player1.velocity.x = 0);
+        document.getElementById("p1-right").addEventListener("mouseup", () => player1.velocity.x = 0);
+        document.getElementById("p2-left").addEventListener("mouseup", () => player2.velocity.x = 0);
+        document.getElementById("p2-right").addEventListener("mouseup", () => player2.velocity.x = 0);
+
+        // Start game on start button click
+        document.getElementById("start-button").addEventListener("click", () => {
+            createPlayers(); // Create players with the selected names and colors
+            loadingScreen.style.display = "none"; // Hide loading screen
+            menu.style.display = "none"; // Hide menu
+            canvas.style.display = "block"; // Show canvas
+            gameLoop(); // Start the game loop
+        });
+
+        // Instructions button
+        document.getElementById("instructions-button").addEventListener("click", () => {
+            alert("Instructions:\n\n- Use the on-screen controls to move and attack.\n- Player 1: Left, Right, Jump, and Attack.\n- Player 2: Left, Right, Jump, and Attack.\n- The first player to reduce the opponent's health to 0 wins!");
+        });
+
+        // Reset button functionality
+        resetButton.addEventListener("click", () => {
+            winnerText.style.display = "none";
+            resetButton.style.display = "none";
+            menu.style.display = "flex";
+            canvas.style.display = "none";
+            document.querySelector('.controls').style.display = "flex";
+        });
+
+        // Exit button functionality
+        document.getElementById("exit-button").addEventListener("click", () => {
+            if (confirm("Are you sure you want to exit?")) {
+                window.close(); // Attempts to close the window (only works in certain cases)
+            }
+        });
+    </script>
+</body>
+</html>
